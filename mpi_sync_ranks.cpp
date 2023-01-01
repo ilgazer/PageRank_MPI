@@ -13,6 +13,7 @@ std::unordered_map<node_id, rank> *curr_ranks;
 std::unordered_map<node_id, rank> *next_ranks;
 // For every pid, stores the list of local nodes that thread is interested in.
 std::vector<std::vector<node_id> > out_facing_nodes_by_pid;
+// Number of nodes we expect to receive from this pid
 std::vector<size_t> num_incoming_nodes_by_pid;
 
 int mypid;
