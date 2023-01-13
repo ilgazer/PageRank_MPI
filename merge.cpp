@@ -3,6 +3,7 @@
 #include <ostream>
 #include <fstream>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <chrono>
 #include <mpi.h>
@@ -29,7 +30,7 @@ static std::unordered_map<int, Node *> owned_nodes_by_id;
 
 static std::vector<Node *> owned_nodes;
 // For every pid, stores the list of local nodes that thread is interested in.
-static std::vector<std::vector<node_id>> out_facing_nodes_by_pid;
+static std::vector<std::unordered_set<node_id>> out_facing_nodes_by_pid;
 // Number of nodes we expect to receive from this pid
 static std::vector<size_t> num_incoming_nodes_by_pid;
 
@@ -63,18 +64,11 @@ void send_ranks()
       continue;
     }
 
-    node_pair rank_updates[nodes.size()];
-    for (size_t i = 0; i < nodes.size(); i++)
-    {
-      rank_updates[i].first = nodes[i];
-      rank_updates[i].second = (*next_ranks)[nodes[i]];
+    std::vector<node_pair> rank_updates(nodes.size());
 
-      // std::cout << mypid << "-> rank_update_to" << dest_pid << " " << rank_updates[i] << "\n";
+    std::transform(nodes.begin(), nodes.end(), rank_updates.begin(), [](auto node){return node_pair{node, (*next_ranks)[node]};});
 
-    }
-
-
-    MPI_Ssend(rank_updates, nodes.size() * sizeof(node_pair), MPI_CHAR, dest_pid, 1, MPI_COMM_WORLD);
+    MPI_Ssend(rank_updates.data(), nodes.size() * sizeof(node_pair), MPI_CHAR, dest_pid, 1, MPI_COMM_WORLD);
     // std::cout << "Sent ranks to " << dest_pid << " as pid:" << mypid << "\n";
   }
 }
@@ -236,7 +230,7 @@ void init_vars()
   for (int pid = 0; pid < numprocs; pid++)
   {
     num_incoming_nodes_by_pid.push_back(0);
-    out_facing_nodes_by_pid.push_back(std::vector<node_id>());
+    out_facing_nodes_by_pid.push_back(std::unordered_set<node_id>());
   }
 }
 
@@ -247,7 +241,7 @@ void push_mock_data()
     owned_nodes.push_back(new Node{0, 2, {1}});
 
     num_incoming_nodes_by_pid[1] = 3;
-    out_facing_nodes_by_pid[1].push_back(0);
+    out_facing_nodes_by_pid[1].insert(0);
   }
   else if (mypid == 1)
   {
@@ -256,14 +250,14 @@ void push_mock_data()
 
     num_incoming_nodes_by_pid[0] = 1;
     num_incoming_nodes_by_pid[2] = 1;
-    out_facing_nodes_by_pid[0].push_back(1);
-    out_facing_nodes_by_pid[0].push_back(2);
+    out_facing_nodes_by_pid[0].insert(1);
+    out_facing_nodes_by_pid[0].insert(2);
   }
   else if (mypid == 2)
   {
     owned_nodes.push_back(new Node{3, 1, {}});
 
-    out_facing_nodes_by_pid[1].push_back(3);
+    out_facing_nodes_by_pid[1].insert(3);
   }
 }
 
@@ -453,8 +447,9 @@ int main(int argc, char *argv[])
     // std::cout << mypid << "done with receiving\n";
   }
   init_vars();
-  std::cout << mypid << "done with initializing variables\n";
+  //std::cout << mypid << "done with initializing variables\n";
   int i;
+  std::unordered_set<node_id> incoming_nodes;
   for (i = 0; i < senders.size(); i++)
   {
     // sender is this processes node
@@ -463,7 +458,7 @@ int main(int argc, char *argv[])
       Node *sender = get_node_by_id(senders[i]);
       sender->num_outgoing_edges++;
     }
-    else
+    else if(incoming_nodes.insert(senders[i]).second)
     {
       num_incoming_nodes_by_pid[site_thread_mapping[senders[i]]]++;
     }
@@ -476,17 +471,17 @@ int main(int argc, char *argv[])
     }
     else
     {
-      out_facing_nodes_by_pid[site_thread_mapping[receivers[i]]].push_back(senders[i]);
+      out_facing_nodes_by_pid[site_thread_mapping[receivers[i]]].insert(senders[i]);
     }
   }
-  std::cout << mypid << ": done creating sites \n";
+  //std::cout << mypid << ": done creating sites \n";
   // std::cout << mypid << " " << owned_nodes.size() << std::endl;
   curr_ranks = new std::unordered_map<node_id, rank>;
   next_ranks = new std::unordered_map<node_id, rank>;
   scores = new std::unordered_map<node_id, rank>;
   init_ranks();
   int cont = 1;
-  std::cout << "done init at " << mypid << std::endl;
+  //std::cout << "done init at " << mypid << std::endl;
   int asd = 0;
   while (cont)
   {
@@ -500,7 +495,7 @@ int main(int argc, char *argv[])
     // std::cout << mypid << "-> scores" << *scores << "\n";
     cont = communicate_sigma(sigma);
   }
-    std::cout << "done calculating at " << mypid << std::endl;
+  // std::cout << "done calculating at " << mypid << std::endl;
 
   // std::cout << "Exited loop as pid " << mypid << "\n";
   consolidate_top_five();
