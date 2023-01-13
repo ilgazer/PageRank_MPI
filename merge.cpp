@@ -10,11 +10,6 @@
 #include <array>
 #include "utils.h"
 
-using std::chrono::duration;
-using std::chrono::duration_cast;
-using std::chrono::high_resolution_clock;
-using std::chrono::milliseconds;
-
 typedef long node_id;
 typedef double rank;
 typedef std::pair<node_id, rank> node_pair;
@@ -68,12 +63,16 @@ void send_ranks()
       continue;
     }
 
-    auto rank_updates = new node_pair[nodes.size()];
+    node_pair rank_updates[nodes.size()];
     for (size_t i = 0; i < nodes.size(); i++)
     {
       rank_updates[i].first = nodes[i];
       rank_updates[i].second = (*next_ranks)[nodes[i]];
+
+      // std::cout << mypid << "-> rank_update_to" << dest_pid << " " << rank_updates[i] << "\n";
+
     }
+
 
     MPI_Ssend(rank_updates, nodes.size() * sizeof(node_pair), MPI_CHAR, dest_pid, 1, MPI_COMM_WORLD);
     // std::cout << "Sent ranks to " << dest_pid << " as pid:" << mypid << "\n";
@@ -158,7 +157,7 @@ int communicate_sigma(double sigma)
       // std::cout << "Received sigma " << recv_sigma << " from pid:" << pid << "\n";
       sum_sigmas += recv_sigma;
     }
-    std::cout << "Sigma" << num_iterations << "=" << sum_sigmas << "\n";
+    // std::cout << "Sigma" << num_iterations << "=" << sum_sigmas << "\n";
     int cont = sum_sigmas > 1e-6;
     for (int pid = 1; pid < numprocs; pid++)
     {
@@ -389,6 +388,7 @@ int main(int argc, char *argv[])
       MPI_Wait(&req_buff[i], MPI_STATUS_IGNORE);
     }
     // sending node thread mapping
+    
     for (int i = 1; i < numprocs; i++)
     {
       std::vector<int> node_thread_mapping_keys;
@@ -422,7 +422,7 @@ int main(int argc, char *argv[])
       MPI_Wait(&req_buff[numprocs + i - 1], MPI_STATUS_IGNORE);
     }
     site_thread_mapping = thread_node_mapping[0];
-    std::cout << mypid << "done with receiving\n";
+    // std::cout << mypid << "done with receiving\n";
   }
   else
   {
@@ -451,7 +451,7 @@ int main(int argc, char *argv[])
     {
       site_thread_mapping[mapping_keys[i]] = mapping_values[i];
     }
-    std::cout << mypid << "done with receiving\n";
+    // std::cout << mypid << "done with receiving\n";
   }
   init_vars();
   int i;
@@ -476,32 +476,36 @@ int main(int argc, char *argv[])
     }
     else
     {
-      out_facing_nodes_by_pid[site_thread_mapping[receivers[i]]].push_back(receivers[i]);
+      out_facing_nodes_by_pid[site_thread_mapping[receivers[i]]].push_back(senders[i]);
     }
   }
-  std::cout << mypid << " " << owned_nodes.size() << std::endl;
+  // std::cout << mypid << " " << owned_nodes.size() << std::endl;
+  // std::cout << mypid << out_facing_nodes_by_pid << "\n";
   curr_ranks = new std::unordered_map<node_id, rank>;
   next_ranks = new std::unordered_map<node_id, rank>;
   scores = new std::unordered_map<node_id, rank>;
   init_ranks();
   int cont = 1;
+  std::cout << "done init at " << mypid << std::endl;
+  int asd = 0;
   while (cont)
   {
-    std::cout << mypid << "-> next_ranks" << *next_ranks << "\n";
+    // std::cout << mypid << "-> next_ranks" << *next_ranks << "\n";
     sync_ranks();
-    std::cout << mypid << "-> curr_ranks" << *curr_ranks << "\n";
+    std::cout << "done round " << asd++ <<" at " << mypid << std::endl;
+    // std::cout << mypid << "-> curr_ranks" << *curr_ranks << "\n";
     double sigma = calculate_ranks();
-    std::cout << mypid << "-> next_ranks" << *next_ranks << "\n";
-    std::cout << mypid << "-> scores" << *scores << "\n";
+    // std::cout << mypid << "-> next_ranks" << *next_ranks << "\n";
+    // std::cout << mypid << "-> scores" << *scores << "\n";
     cont = communicate_sigma(sigma);
     num_iterations++;
-    std::cout << std::endl;
+    // std::cout << std::endl;
   }
+    std::cout << "done calculating at " << mypid << std::endl;
+
   // std::cout << "Exited loop as pid " << mypid << "\n";
   consolidate_top_five();
   // std::cout << num_iterations << " iterations\n";
-  if (mypid == 0)
-    std::cout << "num iterations : " << num_iterations << std::endl;
 
   MPI_Finalize();
   return 0;
