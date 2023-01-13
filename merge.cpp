@@ -37,7 +37,7 @@ static std::unordered_map<node_id, rank> *curr_ranks;
 static std::unordered_map<node_id, rank> *next_ranks;
 static std::unordered_map<node_id, rank> *scores;
 
-static int num_iterations = 1;
+static int num_iterations = 0;
 
 int mypid;
 int numprocs;
@@ -399,7 +399,7 @@ int main(int argc, char *argv[])
         node_thread_mapping_values.push_back(node_thread_pair.second);
         // std::cout << node_thread_pair.first << " " << node_thread_pair.second<< "\n";
       }
-      for (int k = 0; k < node_thread_mapping_keys.size(); k++)
+      // for (int k = 0; k < node_thread_mapping_keys.size(); k++){
         // std::cout << node_thread_mapping_keys[k] << " " << node_thread_mapping_values[k]<< "\n";
         sdata = (int *)calloc(1, sizeof(int));
       sdata[0] = node_thread_mapping_keys.size();
@@ -416,7 +416,6 @@ int main(int argc, char *argv[])
       // MPI_Wait(&req_buff[numprocs +  i -1], MPI_STATUS_IGNORE);
       // std::cout << "[0] : Transmission ended to thread " << i << std::endl;
       // }
-
       int *nodes = node_thread_mapping_values.data();
       MPI_Isend(nodes, count, MPI_INT, i, i * 10 + 2, MPI_COMM_WORLD, &req_buff[numprocs + i - 1]);
       MPI_Wait(&req_buff[numprocs + i - 1], MPI_STATUS_IGNORE);
@@ -454,6 +453,7 @@ int main(int argc, char *argv[])
     // std::cout << mypid << "done with receiving\n";
   }
   init_vars();
+  std::cout << mypid << "done with initializing variables\n";
   int i;
   for (i = 0; i < senders.size(); i++)
   {
@@ -479,8 +479,8 @@ int main(int argc, char *argv[])
       out_facing_nodes_by_pid[site_thread_mapping[receivers[i]]].push_back(senders[i]);
     }
   }
+  std::cout << mypid << ": done creating sites \n";
   // std::cout << mypid << " " << owned_nodes.size() << std::endl;
-  // std::cout << mypid << out_facing_nodes_by_pid << "\n";
   curr_ranks = new std::unordered_map<node_id, rank>;
   next_ranks = new std::unordered_map<node_id, rank>;
   scores = new std::unordered_map<node_id, rank>;
@@ -490,16 +490,15 @@ int main(int argc, char *argv[])
   int asd = 0;
   while (cont)
   {
+    num_iterations++;
     // std::cout << mypid << "-> next_ranks" << *next_ranks << "\n";
+    // std::cout << mypid << "here\n";
     sync_ranks();
-    std::cout << "done round " << asd++ <<" at " << mypid << std::endl;
     // std::cout << mypid << "-> curr_ranks" << *curr_ranks << "\n";
     double sigma = calculate_ranks();
     // std::cout << mypid << "-> next_ranks" << *next_ranks << "\n";
     // std::cout << mypid << "-> scores" << *scores << "\n";
     cont = communicate_sigma(sigma);
-    num_iterations++;
-    // std::cout << std::endl;
   }
     std::cout << "done calculating at " << mypid << std::endl;
 
