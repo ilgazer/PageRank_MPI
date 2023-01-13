@@ -4,6 +4,7 @@
 #include <fstream>
 #include <unordered_map>
 #include <unordered_set>
+#include <transform>
 #include <vector>
 #include <chrono>
 #include <mpi.h>
